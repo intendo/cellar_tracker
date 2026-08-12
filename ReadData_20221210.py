@@ -1,0 +1,559 @@
+from datetime import date
+from itertools import cycle
+from matplotlib import pyplot as plt
+from matplotlib import style
+from numpy import array as narray
+from pandas import DataFrame
+from unidecode import unidecode
+from xlsxwriter import Workbook
+
+from cellartracker import cellartracker
+from decouple import config
+
+# GLOBALS
+# https://cellartracker.readthedocs.io/en/latest/readme.html
+CT_DATA = cellartracker.CellarTracker(
+    username=config("CELLAR_USERNAME"), password=config("CELLAR_PASSWORD")
+).get_list()
+
+CURRENT_YEAR = date.today().year
+
+COLOR_HEADER = "#70ad47"
+COLOR_ALT1 = "#FFFFFF"
+COLOR_ALT2 = "#E2EFDA"
+#    "Inventory",
+COLUMN_NAMES = [
+    "Count",
+    "Vintage",
+    "Best By",
+    "Producer",
+    "Varietal",
+    "Type",
+    "Price",
+    "CTValue",
+    "Value",
+]
+ENCODE = "utf-8-sig"
+IMAGE_NAME = "CellarTrackerHistogram.png"
+MAX_BOTTLE_CHECKBOXES = 12
+SQUARE_IMAGE_NAME = "Square.png"
+
+#        "Country",
+#        "Region",
+#        "SubRegion",
+#        "Appellation",
+
+# Build a dataframe from the data
+DFRAME = DataFrame.from_records(CT_DATA)
+# Drop the columns that we don't care about
+DFRAME = DFRAME.drop(
+    columns=[
+        "iWine",
+        "WineBarcode",
+        "Pending",
+        "Location",
+        "Bin",
+        "Size",
+        "Valuation",
+        "MyValue",
+        "WBValue",
+        "MenuPrice",
+        "Currency",
+        "Wine",
+        "Locale",
+        "SortProducer",
+        "Color",
+        "Category",
+        "MasterVarietal",
+        "Designation",
+        "Vineyard",
+        "WA",
+        "WS",
+        "IWC",
+        "BH",
+        "AG",
+        "WE",
+        "JR",
+        "RH",
+        "JG",
+        "GV",
+        "JK",
+        "LD",
+        "CW",
+        "WFW",
+        "PR",
+        "SJ",
+        "WD",
+        "RR",
+        "JH",
+        "MFW",
+        "WWR",
+        "IWR",
+        "CHG",
+        "TT",
+        "TWF",
+        "DR",
+        "FP",
+        "JM",
+        "PG",
+        "WAL",
+        "JS",
+        "CT",
+        "MY",
+        "BeginConsume",
+        "UPC",
+    ],
+)
+# Remove the empty value (9999) and convert value to integer
+DFRAME["EndConsume"] = DFRAME["EndConsume"].apply(
+    lambda x: "" if (x == "9999") else x
+)
+DFRAME["EndConsume"] = DFRAME["EndConsume"].apply(
+    lambda x: int(x) if (x != "") else x
+)
+# Convert Quantity/Count to integer
+DFRAME["Quantity"] = DFRAME["Quantity"].apply(lambda x: int(x))
+# Convert float Value of wine to integer
+DFRAME["CTValue"] = DFRAME["CTValue"].apply(lambda x: round(float(x)))
+# Remove zero values
+# Convert float Value of wine to integer
+DFRAME["Price"] = DFRAME["Price"].apply(lambda x: round(float(x)))
+# Remove zero values
+DFRAME["Vintage"] = DFRAME["Vintage"].apply(
+    lambda x: "NV" if (x == "1001") else int(x)
+)
+# Remove non-printable values
+#    lambda x: x.replace("\ufffd", "e")
+DFRAME["Varietal"] = DFRAME["Varietal"].apply(lambda x: unidecode(str(x)))
+# DFRAME["Type"] = DFRAME["Type"].apply(lambda x: x.replace("\ufffd", "e"))
+DFRAME["Type"] = DFRAME["Type"].apply(lambda x: unidecode(str(x)))
+
+# Limit the field lengths characters
+DFRAME["Producer"] = DFRAME["Producer"].apply(lambda x: x[:30])
+DFRAME["Varietal"] = DFRAME["Varietal"].apply(lambda x: x[:30])
+DFRAME["Type"] = DFRAME["Type"].apply(lambda x: x[:10])
+# Sort the dataframe by wine type, year, varietal, and winery
+DFRAME.sort_values(
+    ["Type", "Vintage", "Varietal", "Producer", "EndConsume"],
+    ascending=[True, False, True, True, True],
+    inplace=True,
+)
+# Rename columns
+DFRAME = DFRAME.rename(
+    columns={
+        "Quantity": "Count",
+        "EndConsume": "Best By",
+    }
+)
+
+# Convert Value from price per bottle to Value of all bottles
+DFRAME["Value"] = DFRAME.apply(
+    lambda row: (int(row["Count"]) * int(max(row["CTValue"], row["Price"]))),
+    axis=1,
+)
+
+# dataframe_to_pdf(df, "test_1.pdf")
+# print(DFRAME.to_csv(index=False))
+
+SUMMARY = {"Bottles": DFRAME["Count"].sum()}
+SUMMARY["Value"] = DFRAME["Value"].sum(skipna=True)
+SUMMARY["Producers"] = len(DFRAME.Producer.unique())
+SUMMARY["Countries"] = len(DFRAME.Country.unique())
+SUMMARY["Regions"] = len(DFRAME.Region.unique())
+SUMMARY["Appellations"] = len(DFRAME.Appellation.unique())
+SUMMARY["Vintages"] = len(DFRAME.Vintage.unique())
+max_ctvalue = max(DFRAME.CTValue.unique())
+max_price = max(DFRAME.Price.unique())
+MAX_COUNT = max(DFRAME.Count.unique())
+SUMMARY["Most Expensive"] = max(max_ctvalue, max_price)
+min_ctvalue = min(i for i in DFRAME.CTValue.unique() if i > 0)
+min_price = min(i for i in DFRAME.Price.unique() if i > 0)
+SUMMARY["Least Expensive"] = min(min_ctvalue, min_price)
+VINTAGES = sorted(filter(lambda x: x not in ["NV"], DFRAME["Vintage"]))
+NV_VINTAGES = sorted(filter(lambda x: x in ["NV"], DFRAME["Vintage"]))
+
+# print(MAX_COUNT)
+
+year_min = min(VINTAGES)
+year_max = max(VINTAGES)
+# print(year_min)
+# print(year_max)
+year_list = ["NV"]
+year_list.extend(range(year_min - 1, CURRENT_YEAR + 1))
+# print(len(year_list))
+# print(year_list)
+year_list_str = list(map(lambda x: str(x).replace("20", "", 1), year_list))
+# print(year_list_str)
+
+for i in NV_VINTAGES:
+    VINTAGES.insert(0, i)
+# print(VINTAGES)
+# exit(0)
+
+vintage_data = {}
+for vintage in VINTAGES:
+    for year in year_list:
+        if year not in vintage_data:
+            vintage_data[year] = 0
+        if year == vintage:
+            vintage_data[year] = vintage_data[year] + 1
+
+data_values = list(vintage_data.values())
+# print(vintage_data)
+# print(len(data_values))
+# print(data_values)
+
+
+WINE_TYPES = {
+    "Red": 0,
+    "Rose": 0,
+    "White": 0,
+    "Rose - Spa": 0,
+    "White - Sp": 0,
+}
+for i in range(len(DFRAME)):
+    key = str(DFRAME.loc[i, "Type"])
+    vintage = DFRAME.loc[i, "Vintage"]
+    if key not in WINE_TYPES:
+        WINE_TYPES[key] = int(DFRAME.loc[i, "Count"])
+    else:
+        WINE_TYPES[key] = WINE_TYPES[key] + int(DFRAME.loc[i, "Count"])
+for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
+    print(f"{key} : {value}")
+
+WINE_STACK_DATA = {
+    "Red": {"NV": 0},
+    "Rose": {"NV": 0},
+    "White": {"NV": 0},
+    "Rose - Spa": {"NV": 0},
+    "White - Sp": {"NV": 0},
+}
+
+for key in WINE_STACK_DATA.keys():
+    print(f"KEY:{key}")
+    for year in year_list:
+        WINE_STACK_DATA[key][year] = 0
+
+for i in range(len(DFRAME)):
+    key = str(DFRAME.loc[i, "Type"])
+    vintage = str(DFRAME.loc[i, "Vintage"])
+    if key not in WINE_STACK_DATA:
+        WINE_STACK_DATA[key] = {"NV": 0}
+        for year in year_list:
+            WINE_STACK_DATA[key][year] = 0
+    WINE_STACK_DATA[key][vintage] += 1
+# print(WINE_STACK_DATA)
+# print(SUMMARY)
+
+WINE_COLORS = {
+    "Red": "red",
+    "Rose": "pink",
+    "White": "yellow",
+    "Rose - Spa": "blue",
+    "White - Sp": "green",
+}
+x = year_list_str
+y1 = narray(list(WINE_STACK_DATA["Red"].values()))
+y2 = narray(list(WINE_STACK_DATA["Rose"].values()))
+y3 = narray(list(WINE_STACK_DATA["White"].values()))
+y4 = narray(list(WINE_STACK_DATA["Rose - Spa"].values()))
+y5 = narray(list(WINE_STACK_DATA["White - Sp"].values()))
+
+# print(type(y1))
+# print(y1)
+
+style.use("ggplot")
+# plt.rcParams.update({"figure.autolayout": True})
+plt.rcParams.update({"figure.edgecolor": "white", "figure.frameon": True})
+plt.rcParams["axes.edgecolor"] = "black"
+plt.rcParams["axes.linewidth"] = 1
+fig, ax = plt.subplots(facecolor=COLOR_ALT2)
+for idx, value in enumerate(data_values):
+    if value != 0:
+        ax.annotate(str(value), (idx, value), va="bottom", ha="center")
+# for idx in WINE_STACK_DATA.keys():
+# print(f"IDX:{idx}, DATA:{len(WINE_STACK_DATA[idx].values())}")
+
+plt.ylim(0, (max(data_values) + 5))
+ax.set_ylim(0, (max(data_values) + 5))
+ax.bar(x, y1, color=WINE_COLORS["Red"], edgecolor="black", label="Red")
+ax.bar(
+    x,
+    y2,
+    color=WINE_COLORS["Rose"],
+    edgecolor="black",
+    bottom=y1,
+    label="Rose",
+)
+ax.bar(
+    x,
+    y3,
+    color=WINE_COLORS["White"],
+    edgecolor="black",
+    bottom=y1 + y2,
+    label="White",
+)
+ax.bar(
+    x,
+    y4,
+    color=WINE_COLORS["Rose - Spa"],
+    edgecolor="black",
+    bottom=y3 + y2 + y1,
+    label="Rose - Spa",
+)
+ax.bar(
+    x,
+    y5,
+    color=WINE_COLORS["White - Sp"],
+    edgecolor="black",
+    bottom=y4 + y3 + y2 + y1,
+    label="White - Sp",
+)
+labels = ax.get_xticklabels()
+plt.setp(labels, rotation=0, horizontalalignment="center")
+ax.set(xlabel="Year", ylabel="Quantity", title="Vintage by Year")
+ax.legend()
+fig.savefig(IMAGE_NAME, edgecolor=fig.get_edgecolor())
+
+# Reduce the data to just the Columns we care about
+DFRAME = DFRAME[COLUMN_NAMES]
+
+
+def print_cell(wb, ws, row, col, data, color, alignment, border=1):
+    new_format = wb.add_format(
+        {"bg_color": color, "align": alignment, "bottom": border}
+    )
+    if data == 0:
+        data = ""
+    ws.write(row, col, data, new_format)
+    return
+
+
+def print_cell_bestby(wb, ws, row, col, data, color, alignment, border=1):
+    if isinstance(data, int) and int(data) < CURRENT_YEAR:
+        color = "#FF0000"
+    if isinstance(data, int) and int(data) == CURRENT_YEAR:
+        color = "#FFFF00"
+    new_format = wb.add_format(
+        {"bg_color": color, "align": alignment, "bottom": border}
+    )
+    ws.write(row, col, data, new_format)
+    return
+
+
+def print_cell_money(wb, ws, row, col, data, color, alignment, border=1):
+    new_format = wb.add_format(
+        {
+            "bg_color": color,
+            "align": alignment,
+            "bottom": border,
+            "num_format": "$#,##0 ",
+        }
+    )
+    if data == 0:
+        data = ""
+    ws.write(row, col, data, new_format)
+    return
+
+
+# print(DFRAME.to_csv(index=False))
+
+# https://xlsxwriter.readthedocs.io/
+with Workbook("CellarTracker.xlsx") as workbook:
+    # Set up workbook and defaults
+    worksheet = workbook.add_worksheet("Cellar Tracker")
+    worksheet.set_landscape()
+    worksheet.fit_to_pages(1, 0)
+    worksheet.center_horizontally()
+    worksheet.center_vertically()
+    worksheet.set_margins(0.5, 0.5, 0.5, 0.5)
+
+    colors = cycle([COLOR_ALT1, COLOR_ALT2])
+
+    data_header = workbook.add_format({"bg_color": COLOR_HEADER, "border": 1})
+    worksheet.set_row(0, cell_format=data_header)
+    col_widths = [0] * len(COLUMN_NAMES)
+    for col, header in enumerate(COLUMN_NAMES):
+        worksheet.write(0, col, header)
+        col_widths[col] = len(header)
+
+    worksheet.autofilter(0, 0, 0, len(COLUMN_NAMES) - 1)
+
+    last_row = 0
+    alignments = {
+        0: "right",
+        1: "center",
+        2: "center",
+        3: "left",
+        4: "left",
+        5: "left",
+        6: "right",
+        7: "right",
+        8: "right",
+        9: "left",
+    }
+    MONEY_COLUMNS = [8]
+    for row, CT_DATA in enumerate(DFRAME.itertuples()):
+        row += 1
+        last_row = row
+        color = next(colors)
+        for col, value in enumerate(CT_DATA[1:]):
+            if col not in MONEY_COLUMNS:
+                print_cell(
+                    workbook,
+                    worksheet,
+                    last_row,
+                    col,
+                    value,
+                    color,
+                    alignments[col],
+                    1,
+                )
+            if col in MONEY_COLUMNS:
+                print_cell_money(
+                    workbook,
+                    worksheet,
+                    last_row,
+                    col,
+                    value,
+                    color,
+                    alignments[col],
+                    1,
+                )
+            if col in [2]:
+                print_cell_bestby(
+                    workbook,
+                    worksheet,
+                    last_row,
+                    col,
+                    value,
+                    color,
+                    alignments[col],
+                    1,
+                )
+            if isinstance(value, str):
+                col_widths[col] = max(len(value), col_widths[col])
+        square_cells_start = len(CT_DATA) - 1
+        square_cells_end = (
+            len(CT_DATA) - 1 + min(CT_DATA[1], MAX_BOTTLE_CHECKBOXES)
+        )
+        for col in range(
+            square_cells_start, square_cells_start + MAX_BOTTLE_CHECKBOXES
+        ):
+            print_cell_bestby(
+                workbook,
+                worksheet,
+                last_row,
+                col,
+                "",
+                color,
+                "left",
+                1,
+            )
+        for col in range(square_cells_start, square_cells_end):
+            worksheet.insert_image(
+                last_row,
+                col,
+                SQUARE_IMAGE_NAME,
+                {"x_offset": 0, "y_offset": 0},
+            )
+
+    # Print out Totals and Chart
+    last_row += 2
+    print_cell(
+        workbook,
+        worksheet,
+        last_row,
+        1,
+        "Totals",
+        COLOR_HEADER,
+        alignments[0],
+        1,
+    )
+    print_cell(
+        workbook,
+        worksheet,
+        last_row,
+        2,
+        "",
+        COLOR_HEADER,
+        alignments[0],
+        1,
+    )
+    worksheet.insert_image(
+        last_row, 3, IMAGE_NAME, {"x_offset": 0, "y_offset": 0}
+    )
+
+    # Print summaries
+    MONEY_FIELDS = ["Least Expensive", "Most Expensive", "Value"]
+    for value in SUMMARY:
+        # print(f"{value} : {SUMMARY[value]}")
+        last_row += 1
+        color = next(colors)
+        print_cell_money(
+            workbook,
+            worksheet,
+            last_row,
+            1,
+            value,
+            color,
+            alignments[0],
+            1,
+        )
+        if value in MONEY_FIELDS:
+            print_cell_money(
+                workbook,
+                worksheet,
+                last_row,
+                2,
+                SUMMARY[value],
+                color,
+                alignments[0],
+                1,
+            )
+        else:
+            print_cell(
+                workbook,
+                worksheet,
+                last_row,
+                2,
+                SUMMARY[value],
+                color,
+                alignments[0],
+                1,
+            )
+        if isinstance(value, str):
+            col_widths[1] = max(len(value), col_widths[1])
+
+    # Print Wine Categories
+    for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
+        # print(f"{key} : {value}")
+        last_row += 1
+        color = next(colors)
+        print_cell(
+            workbook,
+            worksheet,
+            last_row,
+            1,
+            key,
+            color,
+            alignments[0],
+            1,
+        )
+        print_cell(
+            workbook,
+            worksheet,
+            last_row,
+            2,
+            value,
+            color,
+            alignments[0],
+            1,
+        )
+        if isinstance(value, str):
+            col_widths[1] = max(len(value), col_widths[1])
+
+    for col, header in enumerate(COLUMN_NAMES):
+        worksheet.set_column(col, col, col_widths[col])
+    for col in range(len(COLUMN_NAMES), MAX_COUNT + 1):
+        worksheet.set_column(col, col, 2)
