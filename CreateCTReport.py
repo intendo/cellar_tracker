@@ -1,31 +1,36 @@
 from datetime import date
 from itertools import cycle
-from matplotlib import pyplot as plt
-from matplotlib import style
+#from matplotlib import pyplot as plt
+#from matplotlib import style
 from numpy import array as narray
-import openpyxl
+from openpyxl.cell import Cell
 from pandas import DataFrame
 from unidecode import unidecode
-from openpyxl import Workbook as Workbook
-# from xlsxwriter import Workbook
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font, NamedStyle
 
 from cellartracker import cellartracker
 from decouple import config
+from configparser import ConfigParser
 from pathlib import Path
 from re import sub as subst
-# from win32com import client as win32
 
 # GLOBALS
+config = ConfigParser()
+config.read('settings.ini')
+#config['AUTH']['CELLAR_USERNAME']
 # https://cellartracker.readthedocs.io/en/latest/readme.html
 CT_DATA = cellartracker.CellarTracker(
-    username=config("CELLAR_USERNAME"), password=config("CELLAR_PASSWORD")  # type: ignore
+    username=config.get("AUTH", "CELLAR_USERNAME"),
+    password=config.get("AUTH", "CELLAR_PASSWORD")
 ).get_list()
 
 CURRENT_YEAR = date.today().year
 
-COLOR_HEADER = "#70ad47"
-COLOR_ALT1 = "#FFFFFF"
-COLOR_ALT2 = "#E2EFDA"
+COLOR_HEADER = "70ad47"
+COLOR_ALT1 = "FFFFFF"
+COLOR_ALT2 = "E2EFDA"
 #    "Inventory",
 COLUMN_NAMES = [
     "Count",
@@ -42,7 +47,9 @@ ENCODE = "utf-8-sig"
 FONT_SIZE = 16
 IMAGE_NAME = "CellarTrackerHistogram.png"
 MAX_BOTTLE_CHECKBOXES = 12
-SQUARE_IMAGE_NAME = "Square.png"
+# SQUARE_IMAGE_NAME = "Square.png"
+SPACE_PADDING = 3
+TEXT_PADDING = 10
 
 # Build a dataframe from the data
 DFRAME = DataFrame.from_records(CT_DATA)
@@ -170,39 +177,40 @@ SUMMARY["Least Expensive"] = min(min_ctvalue, min_price)
 VINTAGES = sorted(filter(lambda x: x not in ["NV"], DFRAME["Vintage"]))
 NV_VINTAGES = sorted(filter(lambda x: x in ["NV"], DFRAME["Vintage"]))
 
-print(f"MAX_COUNT: {MAX_COUNT}")
+# for i in SUMMARY:
+#     print(f"SUMMARY: {i} = {SUMMARY[i]}")
+# print(f"MAX_COUNT: {MAX_COUNT}")
 
 year_min: int = min(VINTAGES)
 year_max = max(VINTAGES)
-print(f"Year MIN: {year_min}")
-print(f"Year MAX: {year_max}")
+# print(f"Year MIN: {year_min}")
+# print(f"Year MAX: {year_max}")
 # Generate a list of years (including "NV") as strings
 year_list = ["NV", *[f"{x}" for x in range(year_min - 1, CURRENT_YEAR + 1)]]
-print(f"Number of Years: {len(year_list)}")
-print(f"Year List: {year_list}")
+# print(f"Number of Years: {len(year_list)}")
+# print(f"Year List: {year_list}")
 year_list_str = list(map(lambda x: str(x).replace("20", "", 1), year_list))
-print(f"Year List String: {year_list_str}")
+# print(f"Year List String: {year_list_str}")
 
 for i in NV_VINTAGES:
     VINTAGES.insert(0, i)
-print(f"Vintages: {VINTAGES}")
-# exit(0)
+# print(f"Vintages: {VINTAGES}")
 
 vintage_data = {}
 for vintage in VINTAGES:
-    print(f"vintage: #{vintage}#")
+    # print(f"vintage: #{vintage}#")
     for year in year_list:
-        print(f"year: #{year}#")
+        # print(f"year: #{year}#")
         if year not in vintage_data:
             vintage_data[year] = 0
         if year == vintage:
-            print(f"year/vintage MATCH: #{year}#")
+            # print(f"year/vintage MATCH: #{year}#")
             vintage_data[year] = vintage_data[year] + 1
 
 data_values = list(vintage_data.values())
-print(f"Vintage Data: {vintage_data}")
-print(f"Len of Data Values: {len(data_values)}")
-print(f"Data Values: {data_values}")
+# print(f"Vintage Data: {vintage_data}")
+# print(f"Len of Data Values: {len(data_values)}")
+# print(f"Data Values: {data_values}")
 
 
 WINE_TYPES = {
@@ -215,24 +223,21 @@ WINE_TYPES = {
 for i in range(len(DFRAME)):
     key: str = str(DFRAME.at[i, "Type"])
     vintage: str = str(DFRAME.at[i, "Vintage"])
-    count: int = DFRAME.at[i, "Count"]
+    count: int = int(float(str(DFRAME.at[i, "Count"])))
+    # count: int = int(float(DFRAME.at[i, "Count"]))
+    # print(f"COUNT: {count} = DFRAME.at[{i}, 'Count'] = {DFRAME.at[i, 'Count']}")
     WINE_TYPES[key] = count if key not in WINE_TYPES else WINE_TYPES[key] + count
+    # print(f"WINE_TYPE KEY: {key} = VALUE: {WINE_TYPES[key]}")
 
+# Initialize a dictionary to hold the wine stack data for each wine type and year
+WINE_STACK_DATA: dict[str, dict[str, int]] = {}
 for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
-    print(f"WINE TYPE KEY: {key} = VALUE: {value}")
-
-WINE_STACK_DATA: dict[str, dict[str, int]] = {
-    "Red": {"NV": 0},
-    "Rose": {"NV": 0},
-    "White": {"NV": 0},
-    "Rose - Spa": {"NV": 0},
-    "White - Sp": {"NV": 0},
-}
-
-for key in WINE_STACK_DATA:
-    print(f"WINE STACK DATA KEY: {key}")
+    WINE_STACK_DATA[key] = {"NV": 0}
     for year in year_list:
         WINE_STACK_DATA[key][year] = 0
+        #print(f"WINE TYPE KEY: {key} : {WINE_TYPES[key]}, YEAR: {year} : {WINE_STACK_DATA[key][year]}")
+
+# print(f"WINE STACK DATA: {WINE_STACK_DATA}")
 
 for i in range(len(DFRAME)):
     key: str = str(DFRAME.at[i, "Type"])
@@ -242,8 +247,8 @@ for i in range(len(DFRAME)):
         for year in year_list:
             WINE_STACK_DATA[key][year] = 0
     WINE_STACK_DATA[key][vintage] += 1
-print(f"WINE STACK DATA: {WINE_STACK_DATA}")
-print(f"SUMMARY: {SUMMARY}")
+# print(f"WINE STACK DATA: {WINE_STACK_DATA}")
+# print(f"SUMMARY: {SUMMARY}")
 
 WINE_COLORS = {
     "Red": "red",
@@ -253,152 +258,84 @@ WINE_COLORS = {
     "White - Sp": "green",
 }
 x1 = year_list_str
-y1 = narray(list(WINE_STACK_DATA["Red"].values()))
-y2 = narray(list(WINE_STACK_DATA["Rose"].values()))
-y3 = narray(list(WINE_STACK_DATA["White"].values()))
-y4 = narray(list(WINE_STACK_DATA["Rose - Spa"].values()))
-y5 = narray(list(WINE_STACK_DATA["White - Sp"].values()))
-
-print(f"TYPE Y1: {type(y1)}")
-print(f"Y1: {y1}")
-
-style.use("ggplot")
-# plt.rcParams.update({"figure.autolayout": True})
-plt.rcParams.update({"figure.edgecolor": "white", "figure.frameon": True})
-plt.rcParams["axes.edgecolor"] = "black"
-plt.rcParams["axes.linewidth"] = 1
-fig, ax = plt.subplots(facecolor=COLOR_ALT2)
-for idx, value in enumerate(data_values):
-    if value != 0:
-        ax.annotate(str(value), (idx, value), va="bottom", ha="center")
-for idx in WINE_STACK_DATA.keys():
-    print(f"WINE Stack Data IDX: {idx}, DATA:{len(WINE_STACK_DATA[idx].values())}")
-
-max_val = max(data_values) + 5
-print(f"MAX_VAL: {max_val}")
-plt.ylim(0, max_val)
-ax.set_ylim(0, max_val)
-ax.bar(x1, y1, color=WINE_COLORS["Red"], edgecolor="black", label="Red")
-ax.bar(
-    x1,
-    y2,
-    color=WINE_COLORS["Rose"],
-    edgecolor="black",
-    bottom=y1,
-    label="Rose",
-)
-ax.bar(
-    x1,
-    y3,
-    color=WINE_COLORS["White"],
-    edgecolor="black",
-    bottom=y1 + y2,
-    label="White",
-)
-ax.bar(
-    x1,
-    y4,
-    color=WINE_COLORS["Rose - Spa"],
-    edgecolor="black",
-    bottom=y3 + y2 + y1,
-    label="Rose - Spa",
-)
-ax.bar(
-    x1,
-    y5,
-    color=WINE_COLORS["White - Sp"],
-    edgecolor="black",
-    bottom=y4 + y3 + y2 + y1,
-    label="White - Sp",
-)
-labels = ax.get_xticklabels()
-plt.setp(labels, rotation=0, horizontalalignment="center")
-ax.set(xlabel="Year", ylabel="Quantity", title="Vintage by Year")
-ax.legend()
-fig.savefig(IMAGE_NAME, edgecolor=fig.get_edgecolor())
+# Ensure numeric numpy arrays (convert any non-int types to int)
+y1 = narray([int(v) for v in WINE_STACK_DATA["Red"].values()])
+y2 = narray([int(v) for v in WINE_STACK_DATA["Rose"].values()])
+y3 = narray([int(v) for v in WINE_STACK_DATA["White"].values()])
+y4 = narray([int(v) for v in WINE_STACK_DATA["Rose - Spa"].values()])
+y5 = narray([int(v) for v in WINE_STACK_DATA["White - Sp"].values()])
 
 # Reduce the data to just the Columns we care about
 DFRAME = DFRAME[COLUMN_NAMES]
-
-
-def print_cell(wb, ws, row, col, data, color, alignment, border=1):
-    new_format = wb.add_format(
-        {
-            "bg_color": color,
-            "align": alignment,
-            "bottom": border,
-            "font_size": FONT_SIZE,
-        }
-    )
-    if data == 0:
-        data = ""
-    ws.write(row, col, data, new_format)
-    return
-
-
-def print_cell_bestby(wb, ws, row, col, data, color, alignment, border=1):
-    if isinstance(data, int) and int(data) < CURRENT_YEAR:
-        color = "#FF0000"
-    if isinstance(data, int) and int(data) == CURRENT_YEAR:
-        color = "#FFFF00"
-    new_format = wb.add_format(
-        {
-            "bg_color": color,
-            "align": alignment,
-            "bottom": border,
-            "font_size": FONT_SIZE,
-        }
-    )
-    ws.write(row, col, data, new_format)
-    return
-
-
-def print_cell_money(wb, ws, row, col, data, color, alignment, border=1):
-    new_format = wb.add_format(
-        {
-            "bg_color": color,
-            "align": alignment,
-            "bottom": border,
-            "font_size": FONT_SIZE,
-            "num_format": "$#,##0 ",
-        }
-    )
-    if data == 0:
-        data = ""
-    ws.write(row, col, data, new_format)
-    return
-
-
+# print("DFRAME Columns: ", DFRAME.columns)
 # print(DFRAME.to_csv(index=False))
 
-# https://xlsxwriter.readthedocs.io/
+
+#
+#  Set up the Excel workbook and worksheet
 output_filename = "CellarTracker.xlsx"
 sheet_name = "Cellar Tracker"
 # with Workbook(output_filename) as workbook:
-workbook = Workbook(output_filename)
-workbook.active
+workbook = Workbook()
+worksheet = workbook.active
 # Set up workbook and defaults
-#worksheet = workbook.add_worksheet(sheet_name)
-worksheet = workbook.create_sheet(sheet_name)
-#worksheet.set_landscape()
-worksheet.orientation = 1
-worksheet.fit_to_pages(1, 0)
-worksheet.center_horizontally()
-worksheet.center_vertically()
-worksheet.set_margins(0.5, 0.5, 0.5, 0.5)
+assert worksheet is not None
+worksheet.title = sheet_name
+worksheet.page_setup.draft = False
+worksheet.page_setup.blackAndWhite = False
+worksheet.page_setup.fitToHeight = 0
+worksheet.page_setup.fitToWidth = 1
+worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
+worksheet.page_setup.paperSize = worksheet.PAPERSIZE_TABLOID
+worksheet.page_margins.header = 0.3
+worksheet.page_margins.footer = 0.3
+worksheet.page_margins.left = 0.5
+worksheet.page_margins.right = 0.5
+worksheet.page_margins.top = 0.5
+worksheet.page_margins.bottom = 0.5
+worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+#  Set up the header row with bold font and background color
+worksheet.append(COLUMN_NAMES)
 
 colors = cycle([COLOR_ALT1, COLOR_ALT2])
-
-data_header = workbook.add_format(
-    {"bg_color": COLOR_HEADER, "border": 1, "font_size": FONT_SIZE}
+WHITE = "FFFFFFFF"
+BLACK = "FF000000"
+RED = "FFFF0000"
+YELLOW = "FFFFFF00"
+GREEN = "FF00FF00"
+MAUVE = "FFCC66CC"
+FILL_TYPE = "solid"
+thickness = Side(border_style="thick", color=BLACK)
+cell_border = Border(
+    left=thickness, right=thickness, top=thickness, bottom=thickness
 )
-worksheet.set_row(0, cell_format=data_header)
-col_widths = [0] * len(COLUMN_NAMES)
-for col, header in enumerate(COLUMN_NAMES):
-    worksheet.write(0, col, header)
-    col_widths[col] = len(header)
+bold_font = Font(bold=True, color=BLACK, size=FONT_SIZE)
+for cell in worksheet[1]: # Assuming the first row is row 1
+    cell.font = bold_font
+    #cell.fill = PatternFill(start_color=BLACK, end_color=COLOR_HEADER, fill_type=FILL_TYPE)
+    cell.fill = PatternFill(start_color=GREEN, fill_type=FILL_TYPE)
+    cell.border = cell_border
 
-worksheet.autofilter(0, 0, 0, len(COLUMN_NAMES) - 1)
+
+# worksheet.set_row(0, cell_format=data_header)
+COL_WIDTHS = [0] * len(COLUMN_NAMES)
+for col, header in enumerate(COLUMN_NAMES):
+    worksheet.cell(row=1, column=col + 1, value=header)
+    COL_WIDTHS[col] = len(header)
+
+for col in worksheet.columns:
+    max_len = 0
+    col_letter = get_column_letter(col[0].column)  # Get the column letter (e.g., 'A')
+    
+    # 3. Determine the maximum length of values in the current column
+    for cell in col:
+        if cell.value is not None:
+            max_len = max(max_len, len(str(cell.value)))
+            
+    # 4. Set the column width with some extra padding
+    # Adding a safety margin (e.g., +3) keeps text readable and uncompressed
+    worksheet.column_dimensions[col_letter].width = max(max_len + 3, 10)
 
 last_row = 0
 alignments = {
@@ -413,69 +350,81 @@ alignments = {
     8: "right",
     9: "left",
 }
-MONEY_COLUMNS = [8]
+BOTTLE_COUNT = 0
+MONEY_COLUMNS = [6, 7, 8]
+STRING_COLUMNS = [3, 4, 5]
+BEST_BY = [2]
+CELL_STYLE = NamedStyle(name="cell_style")
+CELL_STYLE.font = Font(size=FONT_SIZE)
 for row, CT_DATA in enumerate(DFRAME.itertuples()):
     row += 1
     last_row = row
+    BOTTLE_COUNT = CT_DATA[1]
     color = next(colors)
+    CELL_STYLE.alignment = Alignment(vertical='top')
+    CELL_STYLE.fill = PatternFill(start_color=color, fill_type=FILL_TYPE)
+    worksheet.row_dimensions[row + 1].height = None
+    # print(f"ROW: {row}")
     for col, value in enumerate(CT_DATA[1:]):
-        if col not in MONEY_COLUMNS:
-            print_cell(
-                workbook,
-                worksheet,
-                last_row,
-                col,
-                value,
-                color,
-                alignments[col],
-                1,
-            )
+        CELL_STYLE.alignment = Alignment(horizontal=alignments[col], wrap_text=True)
+        CELL_STYLE.border = Border(left=None, right=None, top=None, bottom=thickness)
+        CELL_STYLE.number_format = 'General'
+        # print(f"ROW: {row}, COL: {col}, VALUE: {value}")
+        target_cell = Cell(worksheet=worksheet, row=row + 1, column=col + 1)
+        target_cell.style = CELL_STYLE
+        if value == 0:
+            value = ""
         if col in MONEY_COLUMNS:
-            print_cell_money(
-                workbook,
-                worksheet,
-                last_row,
-                col,
-                value,
-                color,
-                alignments[col],
-                1,
-            )
-        if col in [2]:
-            print_cell_bestby(
-                workbook,
-                worksheet,
-                last_row,
-                col,
-                value,
-                color,
-                alignments[col],
-                1,
-            )
+           CELL_STYLE.number_format = "$#,##0 "
+        if col in BEST_BY:
+            if isinstance(value, int) and int(value) < CURRENT_YEAR:
+                color = RED
+            if isinstance(value, int) and int(value) == CURRENT_YEAR:
+                color = YELLOW
+            CELL_STYLE.fill = PatternFill(start_color=color, fill_type=FILL_TYPE)
         if isinstance(value, str):
-            col_widths[col] = max(len(value), col_widths[col])
+            COL_WIDTHS[col] = max(len(value), COL_WIDTHS[col])
+        worksheet.cell(row=row + 1, column=col + 1).style = CELL_STYLE
+        worksheet.cell(row=row + 1, column=col + 1, value=value)
+
     square_cells_start = len(CT_DATA) - 1
     square_cells_end = len(CT_DATA) - 1 + min(CT_DATA[1], MAX_BOTTLE_CHECKBOXES)
+    CELL_STYLE.fill = PatternFill(start_color=color, fill_type=FILL_TYPE)
+    # print(f"BOTTLE_COUNT: {BOTTLE_COUNT}, square_cells_start: {square_cells_start}, square_cells_end: {square_cells_end}")
     for col in range(
-        square_cells_start, square_cells_start + MAX_BOTTLE_CHECKBOXES
+        square_cells_start, square_cells_end, 1
     ):
-        print_cell_bestby(
-            workbook,
-            worksheet,
-            last_row,
-            col,
-            "",
-            color,
-            "left",
-            1,
-        )
-    for col in range(square_cells_start, square_cells_end):
-        worksheet.insert_image(
-            last_row,
-            col,
-            SQUARE_IMAGE_NAME,
-            {"x_offset": 0, "y_offset": 0},
-        )
+        thickness = Side(border_style="double", color=BLACK)
+        CELL_STYLE.border = Border(left=thickness, right=thickness, top=thickness, bottom=thickness)
+        CELL_STYLE.fill = PatternFill(start_color=MAUVE, fill_type=FILL_TYPE)
+        CELL_STYLE.number_format = 'General'
+        worksheet.cell(row=row + 1, column=col + 1).style = CELL_STYLE
+        worksheet.cell(row=row + 1, column=col + 1, value=" ")
+        # print(f"ROW: {row + 1}, COL: {col + 1}, LETTER: {get_column_letter(col + 1)}")
+        worksheet.column_dimensions[get_column_letter(col + 1)].width = SPACE_PADDING
+    #if row >= 10:
+    #    break
+    
+for col in range(len(COLUMN_NAMES)):
+    print(f"COL: {col}, COL_WIDTHS[col]: {COL_WIDTHS[col]}")
+    padding = SPACE_PADDING
+    if col in STRING_COLUMNS:
+        padding = TEXT_PADDING
+    worksheet.column_dimensions[get_column_letter(col + 1)].width = COL_WIDTHS[col] + padding
+
+# worksheet.autofilter(0, 0, 0, len(COLUMN_NAMES) - 1)
+workbook.save(output_filename)
+
+exit(0)
+
+#    for col in range(square_cells_start, square_cells_end):
+#        worksheet.insert_image(
+#            last_row,
+#            col,
+#            SQUARE_IMAGE_NAME,
+#            {"x_offset": 0, "y_offset": 0},
+#        )
+
 
 # Print out Totals and Chart
 last_row += 2
@@ -503,6 +452,7 @@ worksheet.insert_image(last_row, 3, IMAGE_NAME, {"x_offset": 0, "y_offset": 0})
 
 # Print summaries
 MONEY_FIELDS = ["Least Expensive", "Most Expensive", "Value"]
+STRING_FIELDS = ["Producer", "Wine", "Type"]
 for value in SUMMARY:
     print(f"SUMMARY Value: {value} = Summary[value]: {SUMMARY[value]}")
     last_row += 1
@@ -540,7 +490,7 @@ for value in SUMMARY:
             1,
         )
     if isinstance(value, str):
-        col_widths[1] = max(len(value), col_widths[1])
+        COL_WIDTHS[1] = max(len(value), COL_WIDTHS[1])
 
 # Print Wine Categories
 for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
@@ -568,11 +518,11 @@ for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
         1,
     )
     if isinstance(value, str):
-        col_widths[1] = max(len(value), col_widths[1])
+        COL_WIDTHS[1] = max(len(value), COL_WIDTHS[1])
 
-print(f"COL WIDTHS: {col_widths}")
+print(f"COL WIDTHS: {COL_WIDTHS}")
 for col, header in enumerate(COLUMN_NAMES):
-    worksheet.set_column(col, col, min(col_widths[col], 50))
+    worksheet.set_column(col, col, min(COL_WIDTHS[col], 50))
 for col in range(len(COLUMN_NAMES), MAX_COUNT + 1):
     worksheet.set_column(col, col, 2)
 
