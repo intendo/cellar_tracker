@@ -14,18 +14,23 @@ _parser.read(INI_PATH)
 CELLAR_USERNAME = _parser.get("AUTH", "CELLAR_USERNAME", fallback="")
 CELLAR_PASSWORD = _parser.get("AUTH", "CELLAR_PASSWORD", fallback="")
 
-COLOR_HEADER = _parser.get("COLORS", "HEADER", fallback="70AD47")
+CELL_BORDER_COLOR = _parser.get("COLORS", "CELL_BORDER_COLOR", fallback="FF000000")
+CHECKBOX_COLOR = _parser.get("COLORS", "CHECKBOX_COLOR", fallback="FFCC66CC")
 COLOR_ALT1 = _parser.get("COLORS", "ALT1", fallback="FFFFFF")
 COLOR_ALT2 = _parser.get("COLORS", "ALT2", fallback="E2EFDA")
+DRINK_PAST_DUE_COLOR = _parser.get("COLORS", "DRINK_PAST_DUE_COLOR", fallback="FFFF0000")
+DRINK_NOW_COLOR = _parser.get("COLORS", "DRINK_NOW_COLOR", fallback="FFFFFF00")
+FONT_COLOR = _parser.get("COLORS", "FONT_COLOR", fallback="FF000000")
+HEADER_BG_COLOR = _parser.get("COLORS", "HEADER_BG_COLOR", fallback="FF00FF00")
 
-ENCODE = _parser.get("SETTINGS", "ENCODE", fallback="utf-8-sig")
 FONT_NAME = _parser.get("SETTINGS", "FONT_NAME", fallback="Ariel Narrow")
 FONT_SIZE = _parser.getint("SETTINGS", "FONT_SIZE", fallback=16)
 IMAGE_NAME = _parser.get("SETTINGS", "IMAGE_NAME", fallback="CellarTrackerHistogram.png")
 MAX_BOTTLE_CHECKBOXES = _parser.getint("SETTINGS", "MAX_BOTTLE_CHECKBOXES", fallback=12)
-# SQUARE_IMAGE_NAME = "Square.png"
 SPACE_PADDING = _parser.getint("SETTINGS", "SPACE_PADDING", fallback=3)
 TEXT_PADDING = _parser.getint("SETTINGS", "TEXT_PADDING", fallback=16)
+WORKBOOK_FILENAME = _parser.get("SETTINGS", "WORKBOOK_FILENAME", fallback="CellarTracker.xlsx")
+
 
 CURRENT_YEAR = date.today().year
 

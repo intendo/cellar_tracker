@@ -5,22 +5,20 @@ from sys import path
 from pathlib import Path
 path.append(str(Path(__file__).resolve().parent.parent))
             
-from ctconfig import COLUMN_NAMES
+from ctconfig import COLUMN_NAMES, CURRENT_YEAR
 from ctutils import _LOGGER
 from datetime import date
-from io import StringIO
 from numpy import array as narray
 from pandas import DataFrame
-from os.path import splitext
 from re import sub as subst
 from typing import List
 from unidecode import unidecode
 
 
 class CTDataFrameError(Exception):
-    def __init__(self, message, bad_key=None):
+    def __init__(self, message, bad_value=None):
         super().__init__(message)
-        self.bad_weboption = bad_key
+        self.bad_value = bad_value
 
 
 class CTDataFrame:
@@ -28,7 +26,6 @@ class CTDataFrame:
 
     def __init__(self, ct_data: List[dict]):
         """Raises CTDataFrameError if there is any problems."""
-        self.CURRENT_YEAR = date.today().year
         self.ct_data = ct_data
         self.dframes = self.create_dataframe()
 
@@ -189,7 +186,7 @@ class CTDataFrame:
         # print(f"Year MIN: {year_min}")
         # print(f"Year MAX: {year_max}")
         # Generate a list of years (including "NV") as strings
-        year_list = ["NV", *[f"{x}" for x in range(year_min - 1, self.CURRENT_YEAR + 1)]]
+        year_list = ["NV", *[f"{x}" for x in range(year_min - 1, CURRENT_YEAR + 1)]]
         # print(f"Number of Years: {len(year_list)}")
         # print(f"Year List: {year_list}")
         year_list_str = list(map(lambda x: str(x).replace("20", "", 1), year_list))
