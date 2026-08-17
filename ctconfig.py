@@ -15,14 +15,15 @@ CELLAR_USERNAME = _parser.get("AUTH", "CELLAR_USERNAME", fallback="")
 CELLAR_PASSWORD = _parser.get("AUTH", "CELLAR_PASSWORD", fallback="")
 
 CELL_BORDER_COLOR = _parser.get("COLORS", "CELL_BORDER_COLOR", fallback="FF000000")
-CHECKBOX_COLOR = _parser.get("COLORS", "CHECKBOX_COLOR", fallback="FFCC66CC")
+CHECKBOX_COLOR = _parser.get("COLORS", "CHECKBOX_COLOR", fallback="FF4488CC")
 COLOR_ALT1 = _parser.get("COLORS", "ALT1", fallback="FFFFFF")
 COLOR_ALT2 = _parser.get("COLORS", "ALT2", fallback="E2EFDA")
 DRINK_PAST_DUE_COLOR = _parser.get("COLORS", "DRINK_PAST_DUE_COLOR", fallback="FFFF0000")
 DRINK_NOW_COLOR = _parser.get("COLORS", "DRINK_NOW_COLOR", fallback="FFFFFF00")
 FONT_COLOR = _parser.get("COLORS", "FONT_COLOR", fallback="FF000000")
-HEADER_BG_COLOR = _parser.get("COLORS", "HEADER_BG_COLOR", fallback="FF00FF00")
+HEADER_BG_COLOR = _parser.get("COLORS", "HEADER_BG_COLOR", fallback="FF44CC44")
 
+CURRENCY_STYLE = _parser.get("STYLES", "CURRENCY_STYLE", fallback="$#,##0")
 FONT_NAME = _parser.get("SETTINGS", "FONT_NAME", fallback="Ariel Narrow")
 FONT_SIZE = _parser.getint("SETTINGS", "FONT_SIZE", fallback=16)
 IMAGE_NAME = _parser.get("SETTINGS", "IMAGE_NAME", fallback="CellarTrackerHistogram.png")
@@ -45,3 +46,12 @@ COLUMN_NAMES = [
     "CTValue",
     "Value",
 ]
+
+WINE_COLORS = {
+    "Red": "red",
+    "Rose": "pink",
+    "White": "yellow",
+    "Rose - Spa": "blue",
+    "White - Sp": "green",
+}
+        

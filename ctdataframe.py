@@ -5,7 +5,7 @@ from sys import path
 from pathlib import Path
 path.append(str(Path(__file__).resolve().parent.parent))
             
-from ctconfig import COLUMN_NAMES, CURRENT_YEAR
+from ctconfig import COLUMN_NAMES, CURRENT_YEAR, WINE_COLORS
 from ctutils import _LOGGER
 from datetime import date
 from numpy import array as narray
@@ -26,8 +26,10 @@ class CTDataFrame:
 
     def __init__(self, ct_data: List[dict]):
         """Raises CTDataFrameError if there is any problems."""
+        _LOGGER.debug(f"Initializing CTDataFrame with {len(ct_data)} records.")
         self.ct_data = ct_data
-        self.dframes = self.create_dataframe()
+        self.dframe = DataFrame()
+        self.summary: dict[str, int] = {}
 
     def __contains__(self, item):
         """Helper for checking for the presence of an option"""
@@ -44,19 +46,27 @@ class CTDataFrame:
         return (
             self.ct_data[key]
             if key in self.ct_data
-            else CTDataFrameError(f"Key '{key}' not found in CTDataFrame.", bad_key=key)
+            else CTDataFrameError(f"Key '{key}' not found in CTDataFrame.", bad_value=key)
         )
 
     def itertuples(self):
-        yield from self.dframes.itertuples()
+        yield from self.dframe.itertuples()
 
-    def create_dataframe(self):
+    def get_dataframe(self) -> DataFrame:
+        self.create_dataframe()
+        return self.dframe
+
+    def get_summary_data(self) -> dict[str, int]:
+        return self.summary
+
+    def create_dataframe(self) -> None:
         """ Build a dataframe from the data"""
-        DFRAME = DataFrame.from_records(self.ct_data)
+        self.dframe = DataFrame.from_records(self.ct_data)
+        _LOGGER.debug(f"Entering")
         # with open("rawdata.txt", "w") as outfile:
         #     print(DFRAME.to_csv(index=False), file=outfile)
         # Drop the columns that we don't care about
-        DFRAME = DFRAME.drop(
+        self.dframe = self.dframe.drop(
             columns=[
                 "iWine",
                 "WineBarcode",
@@ -114,31 +124,31 @@ class CTDataFrame:
             ],
         )
         # Remove the empty value (9999) and convert value to integer
-        DFRAME["EndConsume"] = DFRAME["EndConsume"].apply(lambda x: "" if (x == "9999") else x)
-        DFRAME["EndConsume"] = DFRAME["EndConsume"].apply(lambda x: int(x) if (x != "") else x)
+        self.dframe["EndConsume"] = self.dframe["EndConsume"].apply(lambda x: "" if (x == "9999") else x)
+        self.dframe["EndConsume"] = self.dframe["EndConsume"].apply(lambda x: int(x) if (x != "") else x)
         # Convert Quantity/Count to integer
-        DFRAME["Quantity"] = DFRAME["Quantity"].apply(lambda x: int(x))
+        self.dframe["Quantity"] = self.dframe["Quantity"].apply(lambda x: int(x))
         # Convert float Value of wine to integer
-        DFRAME["CTValue"] = DFRAME["CTValue"].apply(lambda x: round(float(x)))
+        self.dframe["CTValue"] = self.dframe["CTValue"].apply(lambda x: round(float(x)))
         # Remove zero values
         # Convert float Value of wine to integer
-        DFRAME["Price"] = DFRAME["Price"].apply(lambda x: round(float(x)))
+        self.dframe["Price"] = self.dframe["Price"].apply(lambda x: round(float(x)))
         # Remove zero values
-        DFRAME["Vintage"] = DFRAME["Vintage"].apply(lambda x: "NV" if (x == "1001") else int(x))
-        DFRAME["Wine"] = DFRAME["Wine"].apply(lambda x: unidecode(str(x)))
-        DFRAME["Type"] = DFRAME["Type"].apply(lambda x: unidecode(str(x)))
+        self.dframe["Vintage"] = self.dframe["Vintage"].apply(lambda x: "NV" if (x == "1001") else int(x))
+        self.dframe["Wine"] = self.dframe["Wine"].apply(lambda x: unidecode(str(x)))
+        self.dframe["Type"] = self.dframe["Type"].apply(lambda x: unidecode(str(x)))
 
         # Limit the field lengths characters
-        DFRAME["Producer"] = DFRAME["Producer"].apply(lambda x: x[:30])
-        DFRAME["Type"] = DFRAME["Type"].apply(lambda x: x[:10])
+        self.dframe["Producer"] = self.dframe["Producer"].apply(lambda x: x[:30])
+        self.dframe["Type"] = self.dframe["Type"].apply(lambda x: x[:10])
         # Sort the dataframe by wine type, year, varietal, and winery
-        DFRAME.sort_values(
+        self.dframe.sort_values(
             ["Type", "Vintage", "Wine", "Producer", "EndConsume"],
             ascending=[False, True, True, True, True],
             inplace=True,
         )
         # Rename columns
-        DFRAME = DFRAME.rename(
+        self.dframe = self.dframe.rename(
             columns={
                 "Quantity": "Count",
                 "EndConsume": "Best By",
@@ -146,11 +156,11 @@ class CTDataFrame:
         )
 
         # Convert Value from price per bottle to Value of all bottles
-        DFRAME["Value"] = DFRAME.apply(
+        self.dframe["Value"] = self.dframe.apply(
             lambda row: (int(row["Count"]) * int(max(row["CTValue"], row["Price"]))),
             axis=1,
         )
-        DFRAME["Wine"] = DFRAME.apply(
+        self.dframe["Wine"] = self.dframe.apply(
             lambda row: subst(r"\s*" + row["Producer"] + r"\s*", "", row["Wine"])
             + ", "
             + row["Appellation"],
@@ -160,22 +170,23 @@ class CTDataFrame:
         # dataframe_to_pdf(df, "test_1.pdf")
         # print(DFRAME.to_csv(index=False))
 
-        SUMMARY = {"Bottles": DFRAME["Count"].sum()}
-        SUMMARY["Value"] = DFRAME["Value"].sum(skipna=True)
-        SUMMARY["Producers"] = len(DFRAME.Producer.unique())
-        SUMMARY["Countries"] = len(DFRAME.Country.unique())
-        SUMMARY["Regions"] = len(DFRAME.Region.unique())
-        SUMMARY["Appellations"] = len(DFRAME.Appellation.unique())
-        SUMMARY["Vintages"] = len(DFRAME.Vintage.unique())
-        max_ctvalue = max(DFRAME.CTValue.unique())
-        max_price = max(DFRAME.Price.unique())
-        MAX_COUNT = max(DFRAME.Count.unique())
-        SUMMARY["Most Expensive"] = max(max_ctvalue, max_price)
-        min_ctvalue = min(i for i in DFRAME.CTValue.unique() if i > 0)
-        min_price = min(i for i in DFRAME.Price.unique() if i > 0)
-        SUMMARY["Least Expensive"] = min(min_ctvalue, min_price)
-        VINTAGES = sorted(filter(lambda x: x not in ["NV"], DFRAME["Vintage"]))
-        NV_VINTAGES = sorted(filter(lambda x: x in ["NV"], DFRAME["Vintage"]))
+        self.summary = {"Bottles": self.dframe["Count"].sum()}
+        self.summary["Value"] = self.dframe["Value"].sum(skipna=True)
+        self.summary["CTValue"] = self.dframe["CTValue"].sum(skipna=True)
+        self.summary["Producers"] = len(self.dframe.Producer.unique())
+        self.summary["Countries"] = len(self.dframe.Country.unique())
+        self.summary["Regions"] = len(self.dframe.Region.unique())
+        self.summary["Appellations"] = len(self.dframe.Appellation.unique())
+        self.summary["Vintages"] = len(self.dframe.Vintage.unique())
+        max_ctvalue = max(self.dframe.CTValue.unique())
+        max_price = max(self.dframe.Price.unique())
+        MAX_COUNT = max(self.dframe.Count.unique())
+        self.summary["Most Expensive"] = max(max_ctvalue, max_price)
+        min_ctvalue = min(i for i in self.dframe.CTValue.unique() if i > 0)
+        min_price = min(i for i in self.dframe.Price.unique() if i > 0)
+        self.summary["Least Expensive"] = min(min_ctvalue, min_price)
+        VINTAGES = sorted(filter(lambda x: x not in ["NV"], self.dframe["Vintage"]))
+        NV_VINTAGES = sorted(filter(lambda x: x in ["NV"], self.dframe["Vintage"]))
 
         # for i in SUMMARY:
         #     print(f"SUMMARY: {i} = {SUMMARY[i]}")
@@ -220,10 +231,10 @@ class CTDataFrame:
             "Rose - Spa": 0,
             "White - Sp": 0,
         }
-        for i in range(len(DFRAME)):
-            key: str = str(DFRAME.at[i, "Type"])
-            vintage: str = str(DFRAME.at[i, "Vintage"])
-            count: int = int(float(str(DFRAME.at[i, "Count"])))
+        for i in range(len(self.dframe)):
+            key: str = str(self.dframe.at[i, "Type"])
+            vintage: str = str(self.dframe.at[i, "Vintage"])
+            count: int = int(float(str(self.dframe.at[i, "Count"])))
             # count: int = int(float(DFRAME.at[i, "Count"]))
             # print(f"COUNT: {count} = DFRAME.at[{i}, 'Count'] = {DFRAME.at[i, 'Count']}")
             WINE_TYPES[key] = count if key not in WINE_TYPES else WINE_TYPES[key] + count
@@ -239,9 +250,9 @@ class CTDataFrame:
 
         # print(f"WINE STACK DATA: {WINE_STACK_DATA}")
 
-        for i in range(len(DFRAME)):
-            key: str = str(DFRAME.at[i, "Type"])
-            vintage: str = str(DFRAME.at[i, "Vintage"])
+        for i in range(len(self.dframe)):
+            key: str = str(self.dframe.at[i, "Type"])
+            vintage: str = str(self.dframe.at[i, "Vintage"])
             if key not in WINE_STACK_DATA:
                 WINE_STACK_DATA[key] = {"NV": 0}
                 for year in year_list:
@@ -250,13 +261,6 @@ class CTDataFrame:
         # print(f"WINE STACK DATA: {WINE_STACK_DATA}")
         # print(f"SUMMARY: {SUMMARY}")
 
-        WINE_COLORS = {
-            "Red": "red",
-            "Rose": "pink",
-            "White": "yellow",
-            "Rose - Spa": "blue",
-            "White - Sp": "green",
-        }
         x1 = year_list_str
         # Ensure numeric numpy arrays (convert any non-int types to int)
         y1 = narray([int(v) for v in WINE_STACK_DATA["Red"].values()])
@@ -266,8 +270,8 @@ class CTDataFrame:
         y5 = narray([int(v) for v in WINE_STACK_DATA["White - Sp"].values()])
 
         # Reduce the data to just the Columns we care about
-        DFRAME = DFRAME[COLUMN_NAMES]
+        self.dframe = self.dframe[COLUMN_NAMES]
         # print("DFRAME Columns: ", DFRAME.columns)
         # print(DFRAME.to_csv(index=False)
 
-        return DFRAME
+        #return self.dframe

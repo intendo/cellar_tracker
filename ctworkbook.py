@@ -5,8 +5,11 @@ from sys import path
 from pathlib import Path
 path.append(str(Path(__file__).resolve().parent.parent))
             
-from ctconfig import COLUMN_NAMES, CURRENT_YEAR, COLOR_ALT1, COLOR_ALT2, FONT_NAME, FONT_SIZE, MAX_BOTTLE_CHECKBOXES, SPACE_PADDING, TEXT_PADDING, WORKBOOK_FILENAME
-from ctconfig import CELL_BORDER_COLOR, FONT_COLOR, DRINK_PAST_DUE_COLOR, DRINK_NOW_COLOR, HEADER_BG_COLOR, CHECKBOX_COLOR
+from ctconfig import COLUMN_NAMES, CURRENT_YEAR
+from ctconfig import COLOR_ALT1, COLOR_ALT2, CELL_BORDER_COLOR, FONT_COLOR
+from ctconfig import DRINK_PAST_DUE_COLOR, DRINK_NOW_COLOR, HEADER_BG_COLOR, CHECKBOX_COLOR
+from ctconfig import CURRENCY_STYLE, FONT_NAME, FONT_SIZE, MAX_BOTTLE_CHECKBOXES
+from ctconfig import SPACE_PADDING, TEXT_PADDING, WORKBOOK_FILENAME
 from ctdataframe import CTDataFrame
 from ctutils import _LOGGER
 from itertools import cycle
@@ -14,6 +17,7 @@ from openpyxl import Workbook
 from openpyxl.cell import Cell
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font, NamedStyle
 from openpyxl.utils import get_column_letter
+from pandas import DataFrame
 from typing import List
 
 
@@ -26,10 +30,11 @@ class CTWorkbookError(Exception):
 class CTWorkbook:
     """Helper class for organizing and manipulating CellarTracker data as a Workbook."""
 
-    def __init__(self, ct_data_frame: CTDataFrame):
+    def __init__(self, ct_data_frame: DataFrame, ct_summary_data: dict[str, int]):
         """Raises CTWorkbookError if there is any problems."""
         self.ct_data_frame = ct_data_frame
-        self.dframes = self.create_workbook()
+        self.ct_summary_data = ct_summary_data
+        #self.create_workbook()
 
     def create_workbook(self):
         """Creates a workbook from the CellarTracker data."""
@@ -54,26 +59,56 @@ class CTWorkbook:
         worksheet.page_margins.right = 0.5
         worksheet.page_margins.top = 0.5
         worksheet.page_margins.bottom = 0.5
+        assert worksheet.sheet_properties.pageSetUpPr is not None
         worksheet.sheet_properties.pageSetUpPr.fitToPage = True
         
-        #  Set up the header row with bold font and background color
-        worksheet.append(COLUMN_NAMES)
+        # TODO: should this be combined with HEADERS
+        # Alignment for each data column in the worksheet
+        alignments = {
+            0: "right",
+            1: "center",
+            2: "center",
+            3: "left",
+            4: "left",
+            5: "left",
+            6: "right",
+            7: "right",
+            8: "right",
+            9: "left",
+        }
 
+        best_by_columns = [2]
+        money_columns = [6, 7, 8]
+        string_columns = [3, 4, 5]
+
+        bold_font = Font(name=FONT_NAME, bold=True, color=FONT_COLOR, size=FONT_SIZE)
+        bottle_count = 0
+        cell_style = NamedStyle(name="cell_style")
+        cell_style.font = Font(size=FONT_SIZE)
         colors = cycle([COLOR_ALT1, COLOR_ALT2])
         fill_type = "solid"
+        last_row = 0
         thickness = Side(border_style="thick", color=CELL_BORDER_COLOR)
         cell_border = Border(
             left=thickness, right=thickness, top=thickness, bottom=thickness
         )
    
+        #  TODO:
+        #    - This section seems awkward because it only work on the header
+        #      and not the worksheet as a whole
+        #    - This is partly because the font is bold on the header row
+        #      so it has to be treated specially
+        #    - The COLUMN_NAMES have to be added to the worksheet before
+        #      you can set the widths
+        #  Set up the header row with bold font and background color
+        worksheet.append(COLUMN_NAMES)
+
         # Set up the header row with bold font and background color
-        bold_font = Font(name=FONT_NAME, bold=True, color=FONT_COLOR, size=FONT_SIZE)
         for cell in worksheet[1]: # Assuming the first row is row 1
             cell.font = bold_font
             cell.fill = PatternFill(start_color=HEADER_BG_COLOR, fill_type=fill_type)
             cell.border = cell_border
 
-        # worksheet.set_row(0, cell_format=data_header)
         col_widths = [0] * len(COLUMN_NAMES)
         for col, header in enumerate(COLUMN_NAMES):
             worksheet.cell(row=1, column=col + 1, value=header)
@@ -93,28 +128,7 @@ class CTWorkbook:
             # Adding a safety margin (e.g., +3) keeps text readable and uncompressed
             worksheet.column_dimensions[col_letter].width = max(max_len + 3, 10)
 
-        # Alignment for each column 
-        alignments = {
-            0: "right",
-            1: "center",
-            2: "center",
-            3: "left",
-            4: "left",
-            5: "left",
-            6: "right",
-            7: "right",
-            8: "right",
-            9: "left",
-        }
-
-        bottle_count = 0
-        money_columns = [6, 7, 8]
-        string_columns = [3, 4, 5]
-        best_by = [2]
-        cell_style = NamedStyle(name="cell_style")
-        cell_style.font = Font(size=FONT_SIZE)
-        last_row = 0
-
+        # Process all the data from Cellar Tracker into the worksheet
         for row, ct_data in enumerate(self.ct_data_frame.itertuples()):
             row += 1
             last_row = row
@@ -128,14 +142,14 @@ class CTWorkbook:
                 cell_style.alignment = Alignment(horizontal=alignments[col], wrap_text=True)
                 cell_style.border = Border(left=None, right=None, top=None, bottom=thickness)
                 cell_style.number_format = 'General'
-                # print(f"ROW: {row}, COL: {col}, VALUE: {value}")
+                # _LOGGER.debug(f"ROW: {row}, COL: {col}, VALUE: {value}")
                 target_cell = Cell(worksheet=worksheet, row=row + 1, column=col + 1)
                 target_cell.style = cell_style
                 if value == 0:
                     value = ""
                 if col in money_columns:
-                   cell_style.number_format = "$#,##0 "
-                if col in best_by:
+                   cell_style.number_format = CURRENCY_STYLE
+                if col in best_by_columns:
                     if isinstance(value, int) and int(value) < CURRENT_YEAR:
                         color = DRINK_PAST_DUE_COLOR
                     if isinstance(value, int) and int(value) == CURRENT_YEAR:
@@ -172,56 +186,42 @@ class CTWorkbook:
             worksheet.column_dimensions[get_column_letter(col + 1)].width = col_widths[col] + padding
 
         # Print out Totals and Chart
-#        last_row += 2
-#        worksheet.cell(row=last_row, column=1).style = cell_style
-#            "Totals",
-#            HEADER_BG_COLOR,
-#            alignments[0],
-#
-#        # TODO Create image here and insert it into the worksheet
-#        # worksheet.insert_image(last_row, 3, IMAGE_NAME, {"x_offset": 0, "y_offset": 0})
+        last_row += 3
+        thickness = Side(border_style="double", color=CELL_BORDER_COLOR)
+        cell_style.alignment = Alignment(horizontal="left", wrap_text=False)
+        cell_style.border = Border(left=thickness, right=thickness, top=thickness, bottom=thickness)
+        cell_style.fill = PatternFill(start_color=HEADER_BG_COLOR, fill_type=fill_type)
+        worksheet.cell(row=last_row, column=1).style = cell_style
+        worksheet.cell(row=last_row, column=1, value="Totals")
+
+        # TODO Create image here and insert it into the worksheet
+        # worksheet.insert_image(last_row, 3, IMAGE_NAME, {"x_offset": 0, "y_offset": 0})
         
-#        # Print summaries
-#        MONEY_FIELDS = ["Least Expensive", "Most Expensive", "Value"]
-#        STRING_FIELDS = ["Producer", "Wine", "Type"]
-#        for value in SUMMARY:
-#            print(f"SUMMARY Value: {value} = Summary[value]: {SUMMARY[value]}")
-#            last_row += 1
-#            color = next(colors)
-#            print_cell_money(
-#                workbook,
-#                worksheet,
-#                last_row,
-#                1,
-#                value,
-#                color,
-#                alignments[0],
-#                1,
-#            )
-#            if value in MONEY_FIELDS:
-#                print_cell_money(
-#                    workbook,
-#                    worksheet,
-#                    last_row,
-#                    2,
-#                    SUMMARY[value],
-#                    color,
-#                    alignments[0],
-#                    1,
-#                )
-#            else:
-#                print_cell(
-#                    workbook,
-#                    worksheet,
-#                    last_row,
-#                    2,
-#                    SUMMARY[value],
-#                    color,
-#                    alignments[0],
-#                    1,
-#                )
-#            if isinstance(value, str):
-#                COL_WIDTHS[1] = max(len(value), COL_WIDTHS[1])
+        # Print summaries
+        MONEY_FIELDS = ["Least Expensive", "Most Expensive", "CTValue", "Value"]
+        STRING_FIELDS = ["Producer", "Wine", "Type"]
+        for value in self.ct_summary_data:
+            print(f"SUMMARY Value: {value}, Data: {self.ct_summary_data[value]}")
+            last_row += 1
+            cell_style.number_format = 'General'
+            thickness = Side(border_style="double", color=CELL_BORDER_COLOR)
+            cell_style.alignment = Alignment(horizontal="left", wrap_text=False)
+            cell_style.border = Border(left=thickness, right=thickness, top=thickness, bottom=thickness)
+            cell_style.fill = PatternFill(start_color=HEADER_BG_COLOR, fill_type=fill_type)
+            worksheet.cell(row=last_row, column=1).style = cell_style
+            worksheet.cell(row=last_row, column=1, value=f"{value}")
+
+            color = next(colors)
+            if f"{value}" in MONEY_FIELDS:
+                print(f"WTF: {value}")
+                cell_style.number_format = CURRENCY_STYLE
+            cell_style.alignment = Alignment(horizontal="right", wrap_text=False)
+            cell_style.border = Border(left=None, right=None, top=None, bottom=thickness)
+            cell_style.fill = PatternFill(start_color=color, fill_type=fill_type)
+            worksheet.cell(row=last_row, column=2).style = cell_style
+            worksheet.cell(row=last_row, column=2).value = self.ct_summary_data[value]
+            worksheet.cell(row=last_row, column=2).data_type = 'n'
+
 #        
 #        # Print Wine Categories
 #        for key, value in sorted(WINE_TYPES.items(), key=lambda x: x[0]):
