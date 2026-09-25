@@ -64,7 +64,8 @@ class CTDataFrame:
         self.dframe = DataFrame.from_records(self.ct_data)
         _LOGGER.debug(f"Entering")
         # with open("rawdata.txt", "w") as outfile:
-        #     print(DFRAME.to_csv(index=False), file=outfile)
+        #     print(self.dframe.to_csv(index=False), file=outfile)
+        # exit(0)
         # Drop the columns that we don't care about
         self.dframe = self.dframe.drop(
             columns=[
@@ -72,7 +73,6 @@ class CTDataFrame:
                 "WineBarcode",
                 "Pending",
                 "Location",
-                "Bin",
                 "Size",
                 "Valuation",
                 "MyValue",
@@ -137,6 +137,10 @@ class CTDataFrame:
         self.dframe["Vintage"] = self.dframe["Vintage"].apply(lambda x: "NV" if (x == "1001") else int(x))
         self.dframe["Wine"] = self.dframe["Wine"].apply(lambda x: unidecode(str(x)))
         self.dframe["Type"] = self.dframe["Type"].apply(lambda x: unidecode(str(x)))
+        self.dframe["Bin"] = self.dframe["Bin"].apply(lambda x: unidecode(str(x)))
+
+        # print(f"DFRAME Columns: {self.dframe["Bin"]}")
+        # exit(0)
 
         # Limit the field lengths characters
         self.dframe["Producer"] = self.dframe["Producer"].apply(lambda x: x[:30])
@@ -166,9 +170,16 @@ class CTDataFrame:
             + row["Appellation"],
             axis=1,
         )
+        #  TODO: Figure out how to combine row["Bin"] 
+        #self.dframe["Bin"] = self.dframe.apply(
+        #    lambda x: subst(r"\s*" + x + r"\s*", "", x["Bin"]),
+        #    axis=1,
+        #)
 
         # dataframe_to_pdf(df, "test_1.pdf")
-        # print(DFRAME.to_csv(index=False))
+        #print(self.dframe.to_csv(index=False))
+        #print(f"Bin: {self.dframe["Bin"]}")
+        #exit(0)
 
         self.summary = {"Bottles": self.dframe["Count"].sum()}
         self.summary["Value"] = self.dframe["Value"].sum(skipna=True)

@@ -37,6 +37,7 @@ CURRENT_YEAR = date.today().year
 
 COLUMN_NAMES = [
     "Count",
+    "Bin",
     "Vintage",
     "Best By",
     "Producer",

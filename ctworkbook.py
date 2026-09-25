@@ -65,21 +65,21 @@ class CTWorkbook:
         # TODO: should this be combined with HEADERS
         # Alignment for each data column in the worksheet
         alignments = {
-            0: "right",
-            1: "center",
-            2: "center",
-            3: "left",
-            4: "left",
-            5: "left",
-            6: "right",
-            7: "right",
-            8: "right",
-            9: "left",
+            COLUMN_NAMES.index("Count"): "right",
+            COLUMN_NAMES.index("Bin"): "center",
+            COLUMN_NAMES.index("Vintage"): "center",
+            COLUMN_NAMES.index("Best By"): "left",
+            COLUMN_NAMES.index("Producer"): "left",
+            COLUMN_NAMES.index("Wine"): "left",
+            COLUMN_NAMES.index("Type"): "right",
+            COLUMN_NAMES.index("Price"): "right",
+            COLUMN_NAMES.index("CTValue"): "right",
+            COLUMN_NAMES.index("Value"): "left",
         }
 
-        best_by_columns = [2]
-        money_columns = [6, 7, 8]
-        string_columns = [3, 4, 5]
+        best_by_columns = [COLUMN_NAMES.index("Best By")]
+        money_columns = [COLUMN_NAMES.index("Price"), COLUMN_NAMES.index("CTValue"), COLUMN_NAMES.index("Value")]
+        string_columns = [COLUMN_NAMES.index("Producer"), COLUMN_NAMES.index("Wine"), COLUMN_NAMES.index("Type")]
 
         bold_font = Font(name=FONT_NAME, bold=True, color=FONT_COLOR, size=FONT_SIZE)
         bottle_count = 0
@@ -127,6 +127,8 @@ class CTWorkbook:
             # Set the column width with some extra padding
             # Adding a safety margin (e.g., +3) keeps text readable and uncompressed
             worksheet.column_dimensions[col_letter].width = max(max_len + 3, 10)
+            # print(f"Column {col_letter} width set to {worksheet.column_dimensions[col_letter].width}")
+        # exit(0)
 
         # Process all the data from Cellar Tracker into the worksheet
         for row, ct_data in enumerate(self.ct_data_frame.itertuples()):
@@ -137,8 +139,11 @@ class CTWorkbook:
             cell_style.alignment = Alignment(vertical='top')
             cell_style.fill = PatternFill(start_color=color, fill_type=fill_type)
             worksheet.row_dimensions[row + 1].height = None
-            # print(f"ROW: {row}")
+            print(f"ROW: {row}")
             for col, value in enumerate(ct_data[1:]):
+                # print(f"COL: {col}, ROW: {row}, VALUE: {value}")
+                # if col >= 5:
+                #    exit(0)
                 cell_style.alignment = Alignment(horizontal=alignments[col], wrap_text=True)
                 cell_style.border = Border(left=None, right=None, top=None, bottom=thickness)
                 cell_style.number_format = 'General'

@@ -10,8 +10,6 @@ from ctworkbook import CTWorkbook
 from ctutils import _LOGGER
 from pandas import DataFrame
 import sys
-from typing import List
-
 
 def main(args):
     # Get the data from CellarTracker and convert it to a DataFrame
