@@ -15,7 +15,7 @@ CELLAR_USERNAME = _parser.get("AUTH", "CELLAR_USERNAME", fallback="")
 CELLAR_PASSWORD = _parser.get("AUTH", "CELLAR_PASSWORD", fallback="")
 
 CELL_BORDER_COLOR = _parser.get("COLORS", "CELL_BORDER_COLOR", fallback="FF000000")
-CHECKBOX_COLOR = _parser.get("COLORS", "CHECKBOX_COLOR", fallback="FF4488CC")
+CHECKBOX_COLOR = _parser.get("COLORS", "CHECKBOX_COLOR", fallback="FF6DEDED")
 COLOR_ALT1 = _parser.get("COLORS", "ALT1", fallback="FFFFFF")
 COLOR_ALT2 = _parser.get("COLORS", "ALT2", fallback="E2EFDA")
 DRINK_PAST_DUE_COLOR = _parser.get("COLORS", "DRINK_PAST_DUE_COLOR", fallback="FFFF0000")

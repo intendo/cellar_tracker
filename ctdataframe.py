@@ -146,8 +146,9 @@ class CTDataFrame:
         self.dframe["Producer"] = self.dframe["Producer"].apply(lambda x: x[:30])
         self.dframe["Type"] = self.dframe["Type"].apply(lambda x: x[:10])
         # Sort the dataframe by wine type, year, varietal, and winery
+        #    ["Type", "Vintage", "Wine", "Producer", "EndConsume"],
         self.dframe.sort_values(
-            ["Type", "Vintage", "Wine", "Producer", "EndConsume"],
+            ["Type", "EndConsume", "Vintage", "Wine", "Producer"],
             ascending=[False, True, True, True, True],
             inplace=True,
         )
